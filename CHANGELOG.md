@@ -1,3 +1,10 @@
+# 1.0.0 (2025-06-09)
+
+
+### Features
+
+* added oras push action ([8539b6a](https://github.com/1k-off/action-oras-push/commit/8539b6a17665001d29168410c99a62d929386aba))
+
 ## [1.0.3](https://github.com/1k-off/action-oras-push/compare/v1.0.2...v1.0.3) (2025-06-09)
 
 
