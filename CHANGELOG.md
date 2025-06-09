@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/1k-off/action-oras-push/compare/v1.0.0...v1.1.0) (2025-06-09)
+
+
+### Features
+
+* added tests ([#1](https://github.com/1k-off/action-oras-push/issues/1)) ([65fddde](https://github.com/1k-off/action-oras-push/commit/65fdddeafe0024238491d549f8ecd4c8119883d7))
+
 # 1.0.0 (2025-06-09)
 
 
