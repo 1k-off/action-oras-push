@@ -1,0 +1,325 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Cache Node.js modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install Dependencies
+        run: npm ci
+        
+      - name: Build
+        run: npm run build
+
+      - uses: oras-project/setup-oras@v1
+        with:
+          version: 1.2.3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start Zot Registry (HTTP, No Auth)
+        run: |
+          docker run -d \
+            --name zot-http-noauth \
+            -p 5000:5000 \
+            -v $(pwd)/test/data/zot-configs/http-noauth.json:/etc/zot/config.json \
+            ghcr.io/project-zot/zot-linux-amd64:latest
+
+      - name: Start Zot Registry (HTTP, With Auth)
+        run: |
+          docker run -d \
+            --name zot-http-auth \
+            -p 5001:5000 \
+            -v $(pwd)/test/data/zot-configs/http-auth.json:/etc/zot/config.json \
+            -v $(pwd)/test/data/zot-configs/auth/htpasswd:/etc/zot/htpasswd \
+            ghcr.io/project-zot/zot-linux-amd64:latest
+
+      - name: Start Zot Registry (HTTPS, No Auth)
+        run: |
+          docker run -d \
+            --name zot-https-noauth \
+            -p 5002:5000 \
+            -v $(pwd)/test/data/zot-configs/https-noauth.json:/etc/zot/config.json \
+            -v $(pwd)/test/data/zot-configs/certs:/etc/zot/certs \
+            ghcr.io/project-zot/zot-linux-amd64:latest
+
+      - name: Wait for registries to be ready
+        run: |
+          sleep 10
+          # Test HTTP no auth endpoint
+          curl -f http://localhost:5000/v2/ || exit 1
+          # Test HTTP auth endpoint
+          curl -f -H "Authorization: Basic $(echo -n 'testuser:testpass' | base64)" http://localhost:5001/v2/ || exit 1
+          # Test HTTPS endpoint
+          curl -f -k https://localhost:5002/v2/ || exit 1
+
+      - name: Initialize Test Results
+        run: |
+          echo "# Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Case | Push Status | Verification Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------------|-------------------|---------|" >> $GITHUB_STEP_SUMMARY
+
+      - name: Test Case 1 - Full path and root dir
+        id: test1
+        continue-on-error: true
+        uses: ./
+        with:
+          registry: 'localhost:5000'
+          repository: 'single-file'
+          tag: 'v1.0.0'
+          files: 'test/data/single-file'
+          keep-full-path: 'true'
+          keep-root-dir: 'true'
+          plain-http: 'true'
+
+      - name: Verify Test Case 1
+        id: verify1
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.test1.outcome }}" == "success" ]; then
+            PUSH_STATUS="✅ Passed"
+          else
+            PUSH_STATUS="❌ Failed"
+            echo "| Test Case 1 | $PUSH_STATUS | Skipped | Push failed |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          mkdir -p verify/test-case-1
+          oras pull localhost:5000/single-file:v1.0.0 --plain-http -o verify/test-case-1
+          if [ ! -d "verify/test-case-1/test/data/single-file" ]; then
+            echo "Test Case 1 failed: Expected path 'test/data/single-file' not found"
+            echo "| Test Case 1 | $PUSH_STATUS | ❌ Failed | Path 'test/data/single-file' not found |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          if ! diff -r test/data/single-file verify/test-case-1/test/data/single-file; then
+            echo "Test Case 1 failed: Files do not match"
+            echo "| Test Case 1 | $PUSH_STATUS | ❌ Failed | Files do not match |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "| Test Case 1 | $PUSH_STATUS | ✅ Passed | All checks passed |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Test Case 2 - No full path, with root dir
+        id: test2
+        continue-on-error: true
+        uses: ./
+        with:
+          registry: 'localhost:5000'
+          repository: 'single-file'
+          tag: 'v1.0.1'
+          files: 'test/data/single-file'
+          keep-full-path: 'false'
+          keep-root-dir: 'true'
+          plain-http: 'true'
+
+      - name: Verify Test Case 2
+        id: verify2
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.test2.outcome }}" == "success" ]; then
+            PUSH_STATUS="✅ Passed"
+          else
+            PUSH_STATUS="❌ Failed"
+            echo "| Test Case 2 | $PUSH_STATUS | Skipped | Push failed |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          mkdir -p verify/test-case-2
+          oras pull localhost:5000/single-file:v1.0.1 --plain-http -o verify/test-case-2
+          if [ ! -d "verify/test-case-2/single-file" ]; then
+            echo "Test Case 2 failed: Expected path 'single-file' not found"
+            echo "| Test Case 2 | $PUSH_STATUS | ❌ Failed | Path 'single-file' not found |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          if ! diff -r test/data/single-file verify/test-case-2/single-file; then
+            echo "Test Case 2 failed: Files do not match"
+            echo "| Test Case 2 | $PUSH_STATUS | ❌ Failed | Files do not match |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "| Test Case 2 | $PUSH_STATUS | ✅ Passed | All checks passed |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Test Case 3 - Full path, no root dir
+        id: test3
+        continue-on-error: true
+        uses: ./
+        with:
+          registry: 'localhost:5000'
+          repository: 'single-file'
+          tag: 'v1.0.2'
+          files: 'test/data/single-file'
+          keep-full-path: 'true'
+          keep-root-dir: 'false'
+          plain-http: 'true'
+
+      - name: Verify Test Case 3
+        id: verify3
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.test3.outcome }}" == "success" ]; then
+            PUSH_STATUS="✅ Passed"
+          else
+            PUSH_STATUS="❌ Failed"
+            echo "| Test Case 3 | $PUSH_STATUS | Skipped | Push failed |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          mkdir -p verify/test-case-3
+          oras pull localhost:5000/single-file:v1.0.2 --plain-http -o verify/test-case-3
+          if [ ! -f "verify/test-case-3/index.html" ]; then
+            echo "Test Case 3 failed: Expected file 'index.html' not found"
+            echo "| Test Case 3 | $PUSH_STATUS | ❌ Failed | File 'index.html' not found |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          if ! diff test/data/single-file/index.html verify/test-case-3/index.html; then
+            echo "Test Case 3 failed: Files do not match"
+            echo "| Test Case 3 | $PUSH_STATUS | ❌ Failed | Files do not match |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "| Test Case 3 | $PUSH_STATUS | ✅ Passed | All checks passed |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Test Case 4 - No full path, no root dir
+        id: test4
+        continue-on-error: true
+        uses: ./
+        with:
+          registry: 'localhost:5000'
+          repository: 'single-file'
+          tag: 'v1.0.3'
+          files: 'test/data/single-file'
+          keep-full-path: 'false'
+          keep-root-dir: 'false'
+          plain-http: 'true'
+
+      - name: Verify Test Case 4
+        id: verify4
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.test4.outcome }}" == "success" ]; then
+            PUSH_STATUS="✅ Passed"
+          else
+            PUSH_STATUS="❌ Failed"
+            echo "| Test Case 4 | $PUSH_STATUS | Skipped | Push failed |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          mkdir -p verify/test-case-4
+          oras pull localhost:5000/single-file:v1.0.3 --plain-http -o verify/test-case-4
+          if [ ! -f "verify/test-case-4/index.html" ]; then
+            echo "Test Case 4 failed: Expected file 'index.html' not found"
+            echo "| Test Case 4 | $PUSH_STATUS | ❌ Failed | File 'index.html' not found |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          if ! diff test/data/single-file/index.html verify/test-case-4/index.html; then
+            echo "Test Case 4 failed: Files do not match"
+            echo "| Test Case 4 | $PUSH_STATUS | ❌ Failed | Files do not match |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "| Test Case 4 | $PUSH_STATUS | ✅ Passed | All checks passed |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Test Case 5 - Multiple files repository
+        id: test5
+        continue-on-error: true
+        uses: ./
+        with:
+          registry: 'localhost:5000'
+          repository: 'multiple-files'
+          tag: 'v1.0.0'
+          files: 'test/data/multiple-files'
+          keep-full-path: 'false'
+          keep-root-dir: 'true'
+          plain-http: 'true'
+
+      - name: Verify Test Case 5
+        id: verify5
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.test5.outcome }}" == "success" ]; then
+            PUSH_STATUS="✅ Passed"
+          else
+            PUSH_STATUS="❌ Failed"
+            echo "| Test Case 5 | $PUSH_STATUS | Skipped | Push failed |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          
+          mkdir -p verify/test-case-5
+          oras pull localhost:5000/multiple-files:v1.0.0 --plain-http -o verify/test-case-5
+          if [ ! -d "verify/test-case-5/multiple-files" ]; then
+            echo "Test Case 5 failed: Expected path 'multiple-files' not found"
+            echo "| Test Case 5 | $PUSH_STATUS | ❌ Failed | Path 'multiple-files' not found |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          if ! diff -r test/data/multiple-files verify/test-case-5/multiple-files; then
+            echo "Test Case 5 failed: Files do not match"
+            echo "| Test Case 5 | $PUSH_STATUS | ❌ Failed | Files do not match |" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "| Test Case 5 | $PUSH_STATUS | ✅ Passed | All checks passed |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Test Case 6 - HTTP with auth
+        id: test6
+        continue-on-error: true
+        uses: ./
+        with:
+          registry: 'localhost:5001'
+          repository: 'single-file'
+          tag: 'v1.0.0'
+          files: 'test/data/single-file'
+          keep-full-path: 'false'
+          keep-root-dir: 'true'
+          plain-http: 'true'
+          username: 'testuser'
+          password: 'testpass'
+
+      - name: Verify Test Case 6
+        id: verify6
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.test6.outcome }}" == "success" ]; then
+            PUSH_STATUS="✅ Passed"
+          else
+            PUSH_STATUS="❌ Failed"
+          fi
+          echo "| Test Case 6 | $PUSH_STATUS | N/A | No verification required |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate Test Summary
+        run: |
+          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Total Tests: 6" >> $GITHUB_STEP_SUMMARY
+          echo "Push Success: $(grep -c "✅ Passed" $GITHUB_STEP_SUMMARY | grep "Push Status" || echo 0)" >> $GITHUB_STEP_SUMMARY
+          echo "Push Failed: $(grep -c "❌ Failed" $GITHUB_STEP_SUMMARY | grep "Push Status" || echo 0)" >> $GITHUB_STEP_SUMMARY
+          echo "Verification Success: $(grep -c "✅ Passed" $GITHUB_STEP_SUMMARY | grep "Verification Status" || echo 0)" >> $GITHUB_STEP_SUMMARY
+          echo "Verification Failed: $(grep -c "❌ Failed" $GITHUB_STEP_SUMMARY | grep "Verification Status" || echo 0)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check Test Results
+        run: |
+          # Check if any test failed
+          if grep -q "❌ Failed" $GITHUB_STEP_SUMMARY; then
+            echo "One or more tests failed. Failing the pipeline."
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop zot-http-noauth zot-http-auth zot-https-noauth || true
+          docker rm -f zot-http-noauth zot-http-auth zot-https-noauth || true
