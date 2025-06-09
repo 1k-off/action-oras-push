@@ -1,0 +1,71 @@
+{
+  "name": "action-oras-push",
+  "version": "1.0.0",
+  "description": "GitHub Action for pushing artifacts to OCI registries using ORAS",
+  "main": "src/index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "ncc build src/index.js -o dist",
+    "release": "semantic-release",
+    "release:dry-run": "semantic-release --dry-run"
+  },
+  "keywords": [
+    "GitHub",
+    "Actions",
+    "ORAS",
+    "OCI",
+    "Artifacts",
+    "Registry"
+  ],
+  "author": "1k-off",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/exec": "^1.1.1",
+    "@actions/io": "^1.1.3",
+    "mime-types": "^2.1.35"
+  },
+  "devDependencies": {
+    "@github/local-action": "^1.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.3",
+    "@semantic-release/release-notes-generator": "^14.0.3",
+    "@vercel/ncc": "^0.38.1",
+    "eslint": "^8.57.0",
+    "semantic-release": "^24.2.5"
+  },
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/changelog",
+      [
+        "@semantic-release/github",
+        {
+          "assets": [],
+          "successComment": false,
+          "failTitle": false,
+          "releasedLabels": false,
+          "pullRequestComment": false,
+          "publish": true
+        }
+      ],
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "package.json",
+            "CHANGELOG.md",
+            "dist/**"
+          ],
+          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+        }
+      ]
+    ]
+  }
+}

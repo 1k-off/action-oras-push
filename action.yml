@@ -1,0 +1,53 @@
+name: 'ORAS Push Action'
+description: 'Push artifacts using ORAS CLI'
+author: '1k-off'
+branding:
+  icon: 'upload-cloud'
+  color: 'gray-dark'
+
+inputs:
+  registry:
+    description: 'The OCI registry URL'
+    required: true
+  username:
+    description: 'Registry username (optional if already authenticated)'
+    required: false
+  password:
+    description: 'Registry password or token (optional if already authenticated)'
+    required: false
+  repository:
+    description: 'Target repository name'
+    required: true
+  tag:
+    description: 'Tag for the artifact'
+    required: true
+    default: 'latest'
+  files:
+    description: 'Files to push (space-separated list with optional media types, e.g., "file1:type1 file2:type2"). For directories, use dir/:mediatype format.'
+    required: true
+  keep-full-path:
+    description: 'Keep the full source path in the artifact. Only works when single input is provided.'
+    required: false
+    default: 'false'
+  keep-root-dir:
+    description: 'Keep the root directory in the artifact. If false, only contents are included. Only works when single input is provided.'
+    required: false
+    default: 'false'
+  annotation-file:
+    description: 'Path to annotation file'
+    required: false
+  manifest-annotations:
+    description: 'Manifest annotations (key=value pairs)'
+    required: false
+  plain-http:
+    description: 'Allow plain HTTP connections'
+    required: false
+    default: 'false'
+  insecure:
+    description: 'Skip TLS verification'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js' 
