@@ -3,7 +3,7 @@ description: 'Push artifacts using ORAS CLI'
 author: '1k-off'
 branding:
   icon: 'upload-cloud'
-  color: 'gray-dark'
+  color: 'blue'
 
 inputs:
   registry:
