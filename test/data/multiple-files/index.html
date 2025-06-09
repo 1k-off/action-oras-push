@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Web Page</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Interactive Web Page</h1>
+            <nav>
+                <ul>
+                    <li><a href="#" class="active">Home</a></li>
+                    <li><a href="#">About</a></li>
+                    <li><a href="#">Contact</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <h2>Welcome to Our Page</h2>
+                <p>This is a sample page demonstrating HTML, CSS, and JavaScript integration.</p>
+                <button id="themeToggle" class="btn">Toggle Dark Mode</button>
+            </section>
+
+            <section class="features">
+                <div class="feature-card">
+                    <h3>Feature 1</h3>
+                    <p>Click to see an animation</p>
+                    <button class="btn animate-btn">Animate</button>
+                </div>
+                <div class="feature-card">
+                    <h3>Feature 2</h3>
+                    <p>Counter: <span id="counter">0</span></p>
+                    <button class="btn counter-btn">Increment</button>
+                </div>
+                <div class="feature-card">
+                    <h3>Feature 3</h3>
+                    <p>Type something:</p>
+                    <input type="text" id="textInput" placeholder="Type here...">
+                    <p id="textOutput"></p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Sample Website. All rights reserved.</p>
+        </footer>
+    </div>
+    <script src="js/main.js"></script>
+</body>
+</html> 
