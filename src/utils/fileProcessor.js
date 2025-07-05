@@ -79,14 +79,21 @@ function processFile(filePath, keepFullPath, keepRootDir) {
   return result;
 }
 
+const findCommonParent = (paths) => {
+  if (paths.length === 1) return path.dirname(paths[0]);
+  const splitPaths = paths.map(p => path.resolve(p).split(path.sep));
+  let i = 0;
+  while (splitPaths[0][i] && splitPaths.every(arr => arr[i] === splitPaths[0][i])) i++;
+  return splitPaths[0].slice(0, i).join(path.sep) || path.sep;
+};
+
 async function processInputFiles(filesInput, keepFullPath, keepRootDir) {
   const inputs = filesInput.split(' ').filter(f => f.trim());
-  
   core.debug(`Processing inputs: ${JSON.stringify(inputs)}`);
   core.debug(`Keep full path: ${keepFullPath}`);
   core.debug(`Keep root dir: ${keepRootDir}`);
-  
-  // Validate inputs
+
+  // Validate
   if (inputs.length > 1 && (keepFullPath || keepRootDir)) {
     throw new Error('keep-full-path and keep-root-dir options can only be used with a single directory input');
   }
@@ -97,26 +104,63 @@ async function processInputFiles(filesInput, keepFullPath, keepRootDir) {
     keepFullPath = false;
   }
 
-  for (const input of inputs) {
-    const cleanPath = input.replace(/\/$/, '');
-    core.debug(`Processing input: ${cleanPath}`);
-    
-    if (!fs.existsSync(cleanPath)) {
-      throw new Error(`File or directory not found: ${cleanPath}`);
+  // Single input
+  if (inputs.length === 1) {
+    const input = inputs[0].replace(/\/$/, '');
+    if (!fs.existsSync(input)) throw new Error(`File or directory not found: ${input}`);
+    const stat = fs.statSync(input);
+    if (stat.isDirectory()) {
+      if (keepRootDir) {
+        // Push the directory as a single artifact
+        const mediaType = getMediaTypeForDirectory(input);
+        const processedFiles = [`${path.basename(input)}:${mediaType}`];
+        const workingDir = path.dirname(input);
+        core.debug(`Directory as single artifact: ${processedFiles[0]}, workingDir: ${workingDir}`);
+        return { processedFiles, workingDir };
+      } else {
+        // Push the directory as '.' from inside the directory
+        const processedFiles = ['.'];
+        const workingDir = input;
+        core.debug(`Directory as '.', workingDir: ${workingDir}`);
+        return { processedFiles, workingDir };
+      }
+    } else {
+      // Single file
+      const mediaType = getMediaTypeForFile(input);
+      const processedFiles = [`${path.basename(input)}:${mediaType}`];
+      const workingDir = path.dirname(input);
+      core.debug(`Single file: ${processedFiles[0]}, workingDir: ${workingDir}`);
+      return { processedFiles, workingDir };
     }
-
-    const stat = fs.statSync(cleanPath);
-    const workingDir = getWorkingDirectory(cleanPath, keepFullPath, keepRootDir);
-    const processedFiles = stat.isDirectory() ?
-      processDirectory(cleanPath, keepFullPath, keepRootDir) :
-      processFile(cleanPath, keepFullPath, keepRootDir);
-
-    core.debug(`Processed files: ${JSON.stringify(processedFiles)}`);
-    core.debug(`Working directory: ${workingDir}`);
-    return { processedFiles, workingDir };
   }
 
-  throw new Error('No valid input files found');
+  // Multiple inputs (files or directories)
+  let processedFiles = [];
+  let allPaths = [];
+  for (const input of inputs) {
+    const cleanPath = input.replace(/\/$/, '');
+    if (!fs.existsSync(cleanPath)) throw new Error(`File or directory not found: ${cleanPath}`);
+    const stat = fs.statSync(cleanPath);
+    if (stat.isDirectory()) {
+      if (keepRootDir) {
+        const mediaType = getMediaTypeForDirectory(cleanPath);
+        processedFiles.push(`${path.basename(cleanPath)}:${mediaType}`);
+        allPaths.push(path.dirname(cleanPath));
+      } else {
+        processedFiles.push('.');
+        allPaths.push(cleanPath);
+      }
+    } else {
+      const mediaType = getMediaTypeForFile(cleanPath);
+      processedFiles.push(`${path.basename(cleanPath)}:${mediaType}`);
+      allPaths.push(path.dirname(cleanPath));
+    }
+  }
+  // For keepRootDir=false, workingDir is the common parent of all directories/files
+  // For keepRootDir=true, workingDir is the common parent of all parent dirs
+  const workingDir = findCommonParent(allPaths);
+  core.debug(`Multiple inputs: ${JSON.stringify(processedFiles)}, workingDir: ${workingDir}`);
+  return { processedFiles, workingDir };
 }
 
 module.exports = {
