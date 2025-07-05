@@ -44,7 +44,6 @@ async function pushArtifacts(repoUrl, processedFiles, workingDir, options = {}) 
   if (plainHttp) pushArgs.push('--plain-http');
   if (insecure) pushArgs.push('--insecure');
 
-  // Add processed files
   pushArgs.push(...processedFiles);
 
   core.info(`Pushing artifacts to: ${repoUrl}`);
