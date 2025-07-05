@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/1k-off/action-oras-push/compare/v1.1.0...v1.1.1) (2025-07-05)
+
+
+### Bug Fixes
+
+* single dir push ([#3](https://github.com/1k-off/action-oras-push/issues/3)) ([9b93a45](https://github.com/1k-off/action-oras-push/commit/9b93a4574322de1b5f798f15f668a96cc4d09735))
+
 # [1.1.0](https://github.com/1k-off/action-oras-push/compare/v1.0.0...v1.1.0) (2025-06-09)
 
 
