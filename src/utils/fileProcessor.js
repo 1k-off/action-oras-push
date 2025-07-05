@@ -111,10 +111,17 @@ async function processInputFiles(filesInput, keepFullPath, keepRootDir) {
     const stat = fs.statSync(input);
     if (stat.isDirectory()) {
       if (keepRootDir) {
-        // Push the directory as a single artifact
+        // Fix: If keepFullPath, use full relative path from cwd
         const mediaType = getMediaTypeForDirectory(input);
-        const processedFiles = [`${path.basename(input)}:${mediaType}`];
-        const workingDir = path.dirname(input);
+        let artifactPath, workingDir;
+        if (keepFullPath) {
+          artifactPath = path.relative(process.cwd(), input);
+          workingDir = process.cwd();
+        } else {
+          artifactPath = path.basename(input);
+          workingDir = path.dirname(input);
+        }
+        const processedFiles = [`${artifactPath}:${mediaType}`];
         core.debug(`Directory as single artifact: ${processedFiles[0]}, workingDir: ${workingDir}`);
         return { processedFiles, workingDir };
       } else {
